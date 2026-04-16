@@ -63,13 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="mb-3"><label class="form-label">Email</label><input type="email" name="email" class="form-control" required></div>
         <div class="mb-3"><label class="form-label">Password</label><input type="password" name="password" class="form-control" required></div>
         <button type="submit" class="btn btn-primary w-100">Login</button>
+
+<div class="text-center mt-3">
+    <a href="register.php">Create New Account</a>
+</div>
         <div class="text-center mt-3"><a href="forgot-password.php">Forgot Password?</a></div>
     </form>
-    <hr>
-    <div class="text-center text-muted small">
-        <strong>Demo:</strong> Admin: admin@doit.edu.ph / Admin@1234<br>
-        Faculty: john.smith@doit.edu.ph / Faculty@1234
-    </div>
+
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

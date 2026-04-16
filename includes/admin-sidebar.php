@@ -13,8 +13,6 @@ $logo_path = getSetting($pdo, 'logo_path');
         <?php else: ?>
             <i class="bi bi-calendar-check fs-1 text-white"></i>
         <?php endif; ?>
-        <h5 class="text-white mt-2">DOIT Admin</h5>
-        <p class="text-gold small">Davao Oriental Int'l</p>
     </div>
     <nav class="nav flex-column">
         <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : '' ?>" href="dashboard.php">
@@ -51,4 +49,4 @@ $logo_path = getSetting($pdo, 'logo_path');
             <i class="bi bi-box-arrow-right"></i> Logout
         </a>
     </nav>
-</div>
+</div>  

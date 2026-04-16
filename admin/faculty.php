@@ -142,16 +142,11 @@ $faculty_list = $stmt->fetchAll();
     <link rel="stylesheet" href="../assets/css/theme.css">
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar (same as dashboard) -->
-            <div class="col-md-2 p-0 sidebar">
-                <!-- Include sidebar here -->
-                <?php include '../includes/admin-sidebar.php'; ?>
-            </div>
-            
-            <!-- Main Content -->
-            <div class="col-md-10 p-4">
+<button class="mobile-menu-toggle" onclick="toggleSidebar()">
+    <i class="bi bi-list"></i>
+</button>
+<?php include '../includes/admin-sidebar.php'; ?>
+<div class="main-content">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2>Faculty Management</h2>
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFacultyModal">
@@ -257,9 +252,6 @@ $faculty_list = $stmt->fetchAll();
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
     
     <!-- Add Faculty Modal -->
     <div class="modal fade" id="addFacultyModal" tabindex="-1">
@@ -337,6 +329,10 @@ $faculty_list = $stmt->fetchAll();
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
     <script>
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('show');
+}
         $(document).ready(function() {
             $('#facultyTable').DataTable({
                 pageLength: 25,

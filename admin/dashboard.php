@@ -31,12 +31,11 @@ foreach ($trend as $t) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-2 p-0">
-            <?php include '../includes/admin-sidebar.php'; ?>
-        </div>
-        <div class="col-md-10 p-4">
+<button class="mobile-menu-toggle" onclick="toggleSidebar()">
+    <i class="bi bi-list"></i>
+</button>
+<?php include '../includes/admin-sidebar.php'; ?>
+<div class="main-content">
             <h2>Dashboard</h2>
             <div class="row mt-4">
                 <div class="col-md-3">
@@ -122,11 +121,13 @@ foreach ($trend as $t) {
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('show');
+}
     const ctx = document.getElementById('attendanceChart').getContext('2d');
     new Chart(ctx, {
         type: 'line',
