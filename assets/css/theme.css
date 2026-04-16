@@ -1,0 +1,203 @@
+/* DOIT Faculty Attendance System - Maroon, Gold, White Theme */
+
+:root {
+    --maroon: #800000;
+    --maroon-dark: #5a0000;
+    --maroon-light: #9a1f1f;
+    --gold: #FFD700;
+    --gold-dark: #DAA520;
+    --gold-light: #FFE44D;
+    --white: #ffffff;
+    --gray-bg: #f8f9fa;
+}
+
+/* Global */
+body {
+    background-color: var(--gray-bg);
+    font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* Sidebar (shared) */
+.sidebar {
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--maroon) 0%, var(--maroon-dark) 100%);
+}
+.sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+    padding: 12px 20px;
+    margin: 4px 0;
+    transition: all 0.3s;
+    border-radius: 8px;
+}
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+    background: rgba(255, 215, 0, 0.2);
+    color: var(--gold);
+}
+.sidebar .nav-link i {
+    margin-right: 10px;
+    width: 24px;
+}
+.text-gold {
+    color: var(--gold);
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--maroon);
+    border-color: var(--maroon-dark);
+}
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: var(--maroon-dark);
+    border-color: var(--maroon-dark);
+}
+.btn-success {
+    background-color: var(--gold);
+    border-color: var(--gold-dark);
+    color: var(--maroon-dark);
+}
+.btn-success:hover {
+    background-color: var(--gold-dark);
+    color: var(--maroon);
+}
+.btn-outline-primary {
+    border-color: var(--maroon);
+    color: var(--maroon);
+}
+.btn-outline-primary:hover {
+    background-color: var(--maroon);
+    border-color: var(--maroon);
+    color: white;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+.card-header {
+    background-color: var(--white);
+    border-bottom: 2px solid var(--gold);
+    font-weight: 600;
+    color: var(--maroon);
+    border-radius: 12px 12px 0 0;
+}
+
+/* Tables */
+.table thead th {
+    background-color: var(--maroon);
+    color: var(--white);
+    border-bottom: none;
+    font-weight: 500;
+}
+.table-hover tbody tr:hover {
+    background-color: rgba(128, 0, 0, 0.05);
+}
+
+/* Badges */
+.badge.bg-success {
+    background-color: var(--gold) !important;
+    color: var(--maroon-dark);
+}
+.badge.bg-primary {
+    background-color: var(--maroon) !important;
+}
+.badge.bg-warning {
+    background-color: var(--gold) !important;
+    color: var(--maroon-dark);
+}
+
+/* Login Page */
+.login-card {
+    border-top: 5px solid var(--gold);
+}
+.btn-login {
+    background: linear-gradient(135deg, var(--maroon), var(--maroon-dark));
+    border: none;
+    font-weight: bold;
+}
+.btn-login:hover {
+    background: linear-gradient(135deg, var(--maroon-dark), var(--maroon));
+}
+
+/* Dashboard stat cards */
+.stat-card {
+    border-left: 4px solid var(--gold);
+}
+.stat-card h2 {
+    color: var(--maroon);
+}
+.stat-icon {
+    font-size: 2.5rem;
+    opacity: 0.2;
+    position: absolute;
+    right: 20px;
+    top: 20px;
+}
+
+/* Faculty check-in card */
+.check-card {
+    background: linear-gradient(135deg, var(--maroon), var(--maroon-dark));
+    color: white;
+    border-radius: 15px;
+    padding: 20px;
+}
+.check-card .btn-light {
+    background-color: var(--gold);
+    color: var(--maroon-dark);
+    border: none;
+}
+.check-card .btn-light:hover {
+    background-color: var(--gold-dark);
+    color: var(--maroon);
+}
+
+/* Modals */
+.modal-header {
+    background-color: var(--maroon);
+    color: var(--white);
+    border-bottom: 2px solid var(--gold);
+}
+.modal-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+/* Pagination */
+.page-item.active .page-link {
+    background-color: var(--maroon);
+    border-color: var(--maroon);
+}
+.page-link {
+    color: var(--maroon);
+}
+.page-link:hover {
+    color: var(--maroon-dark);
+}
+
+/* Alerts */
+.alert-success {
+    background-color: var(--gold-light);
+    border-color: var(--gold);
+    color: var(--maroon-dark);
+}
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: var(--maroon);
+}
+
+/* Footer (optional) */
+footer {
+    background-color: var(--maroon-dark);
+    color: var(--white);
+    border-top: 2px solid var(--gold);
+    padding: 15px 0;
+    margin-top: 30px;
+}

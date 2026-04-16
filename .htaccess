@@ -1,0 +1,52 @@
+# DOIT Faculty Attendance System - Apache Configuration
+
+# Enable URL rewriting
+RewriteEngine On
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# PHP settings
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+    php_value upload_max_filesize 5M
+    php_value post_max_size 6M
+</IfModule>
+
+<IfModule mod_php8.c>
+    php_flag display_errors Off
+    php_value max_execution_time 300
+    php_value memory_limit 256M
+    php_value upload_max_filesize 5M
+    php_value post_max_size 6M
+</IfModule>
+
+# Directory access
+Options -Indexes -MultiViews
+DirectoryIndex index.php index.html
+
+# Block access to sensitive files
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|inc|bak|backup|old|tmp)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(conf|config|sql)$">
+    Require all denied
+</FilesMatch>
+
+# Allow access to public files
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|pdf|doc|docx)$">
+    Require all granted
+</FilesMatch>
+
+# URL rewriting for clean URLs
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
