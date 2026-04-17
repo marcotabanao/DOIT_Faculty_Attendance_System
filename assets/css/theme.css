@@ -101,6 +101,10 @@ body {
     color: var(--maroon);
 }
 
+.pt-4 {
+    padding-top: 80px !important;
+}
+
 .notification-badge {
     position: absolute;
     top: 5px;

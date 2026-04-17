@@ -36,33 +36,8 @@ $leaveBalance = $balStmt->fetchColumn();
         <div class="col-md-2 p-0"><?php include '../includes/faculty-sidebar.php'; ?></div>
         <div class="col-md-10 p-0">
             <?php include '../includes/faculty-tapnav.php'; ?>
-            <div class="p-4">
-                <!-- ========= ID SCANNER SECTION ========= -->
-                <div class="card border-0 shadow-sm mb-4">
-                    <div class="card-body p-4">
-                        <h4 class="fw-semibold mb-3"><i class="bi bi-upc-scan"></i> Quick Attendance via ID</h4>
-                        <form method="POST" action="../actions/scan-attendance.php" class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Scan or enter Employee ID</label>
-                                <input type="text" name="employee_id" class="form-control form-control-lg" placeholder="e.g., FAC001" required autofocus>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <button type="submit" name="action" value="checkin" class="btn btn-success btn-lg w-100"><i class="bi bi-box-arrow-in-right"></i> Check In</button>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <button type="submit" name="action" value="checkout" class="btn btn-warning btn-lg w-100"><i class="bi bi-box-arrow-right"></i> Check Out</button>
-                            </div>
-                        </form>
-                        <?php if (isset($_SESSION['scan_success'])): ?>
-                            <div class="alert alert-success mt-3"><?= htmlspecialchars($_SESSION['scan_success']) ?></div>
-                            <?php unset($_SESSION['scan_success']); ?>
-                        <?php elseif (isset($_SESSION['scan_error'])): ?>
-                            <div class="alert alert-danger mt-3"><?= htmlspecialchars($_SESSION['scan_error']) ?></div>
-                            <?php unset($_SESSION['scan_error']); ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
+            <div class="pt-4">
+                
                 <!-- Stats Cards (unchanged) -->
                 <div class="row g-4 mb-4">
                     <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-body"><div class="d-flex justify-content-between"><div><h6 class="text-muted">Present This Month</h6><h2 class="text-success"><?= $summary['present'] ?? 0 ?></h2></div><i class="bi bi-calendar-check fs-1 text-success opacity-50"></i></div></div></div></div>
