@@ -35,6 +35,7 @@ foreach ($trend as $t) {
     <i class="bi bi-list"></i>
 </button>
 <?php include '../includes/admin-sidebar.php'; ?>
+<?php include '../includes/admin-topnav.php'; ?>
 <div class="main-content">
             <h2>Dashboard</h2>
             <div class="row mt-4">

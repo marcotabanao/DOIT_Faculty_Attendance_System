@@ -42,11 +42,11 @@ $logo_path = getSetting($pdo, 'logo_path');
         <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'audit-logs.php' ? 'active' : '' ?>" href="audit-logs.php">
             <i class="bi bi-journal-text"></i> Audit Logs
         </a>
-        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : '' ?>" href="settings.php">
+        <!-- <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : '' ?>" href="settings.php">
             <i class="bi bi-gear"></i> Settings
         </a>
         <a class="nav-link" href="../logout.php">
             <i class="bi bi-box-arrow-right"></i> Logout
-        </a>
+        </a> -->
     </nav>
-</div>  
+</div>
