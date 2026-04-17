@@ -101,7 +101,9 @@ $pendingCount = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <h2>Leave Requests <span class="badge bg-warning">Pending: <?= $pendingCount ?></span></h2>
             
             <?php if ($message): ?>
@@ -226,5 +228,9 @@ function setLeaveIdReject(id) {
     document.getElementById('rejectModal').querySelector('form').action = '?reject=' + id;
 }
 </script>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

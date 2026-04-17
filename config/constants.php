@@ -7,7 +7,7 @@ if (!defined('PROFILE_PHOTO_PATH')) define('PROFILE_PHOTO_PATH', UPLOAD_PATH . '
 if (!defined('LEAVE_ATTACHMENT_PATH')) define('LEAVE_ATTACHMENT_PATH', UPLOAD_PATH . 'leave_attachments/');
 if (!defined('SESSION_TIMEOUT')) define('SESSION_TIMEOUT', 1800);
 if (!defined('CSRF_TOKEN_NAME')) define('CSRF_TOKEN_NAME', 'csrf_token');
-if (!defined('MAX_FILE_SIZE')) define('MAX_FILE_SIZE', 5242880);   // <-- ADD THIS
+if (!defined('MAX_FILE_SIZE')) define('MAX_FILE_SIZE', 5242880);
 if (!defined('ALLOWED_IMAGE_TYPES')) define('ALLOWED_IMAGE_TYPES', ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']);
 if (!defined('ALLOWED_DOC_TYPES')) define('ALLOWED_DOC_TYPES', ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
 

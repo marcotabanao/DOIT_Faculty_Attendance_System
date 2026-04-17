@@ -96,7 +96,9 @@ if ($report_type === 'attendance_summary' && !empty($report_data)) {
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <h2>Reports & Analytics</h2>
             
             <!-- Filter Form -->
@@ -137,7 +139,7 @@ if ($report_type === 'attendance_summary' && !empty($report_data)) {
             <!-- Export Button -->
             <?php if (!empty($report_data)): ?>
             <div class="mb-3 text-end">
-                <a href="?<?= $_SERVER['QUERY_STRING'] ?>&export=csv" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> Export to CSV</a>
+                <a href="?<?= $_SERVER['QUERY_STRING'] ?>&export=csv" class="btn btn-success">Export to CSV</a>
             </div>
             <?php endif; ?>
             
@@ -223,5 +225,9 @@ if ($report_type === 'attendance_summary' && !empty($report_data)) {
     });
 </script>
 <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

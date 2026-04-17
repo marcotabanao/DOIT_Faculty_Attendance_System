@@ -1,11 +1,6 @@
 <?php
 session_start();
-
-// Define constants if not already defined
-if (!defined('SESSION_TIMEOUT')) define('SESSION_TIMEOUT', 1800);
-if (!defined('CSRF_TOKEN_NAME')) define('CSRF_TOKEN_NAME', 'csrf_token');
-if (!defined('SITE_URL')) define('SITE_URL', 'http://localhost/DOIT_FULL_SYSTEM/');
-
+require_once __DIR__ . '/../config/constants.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/functions.php';
 

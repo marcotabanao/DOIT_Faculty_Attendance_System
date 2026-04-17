@@ -76,7 +76,9 @@ $actions = $pdo->query("SELECT DISTINCT action FROM audit_logs ORDER BY action")
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <h2>Audit Logs</h2>
             <p class="text-muted">Track all admin actions, including create, update, delete, and leave reviews.</p>
 
@@ -176,6 +178,7 @@ $actions = $pdo->query("SELECT DISTINCT action FROM audit_logs ORDER BY action")
             </div>
         </div>
     </div>
+</div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

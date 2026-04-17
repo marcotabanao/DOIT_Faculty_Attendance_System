@@ -90,9 +90,9 @@ foreach ($trend as $t) {
                     <div class="card">
                         <div class="card-header">Quick Actions</div>
                         <div class="card-body">
-                            <a href="attendance.php" class="btn btn-primary w-100 mb-2"><i class="bi bi-check2-square"></i> Mark Attendance</a>
-                            <a href="faculty.php?action=add" class="btn btn-success w-100 mb-2"><i class="bi bi-person-plus"></i> Add Faculty</a>
-                            <a href="leaves.php" class="btn btn-info w-100"><i class="bi bi-envelope-paper"></i> Review Leaves (<?= $pendingLeaves ?>)</a>
+                            <a href="attendance.php" class="btn btn-primary w-100 mb-2">Mark Attendance</a>
+                            <a href="faculty.php?action=add" class="btn btn-success w-100 mb-2">Add Faculty</a>
+                            <a href="leaves.php" class="btn btn-info w-100">Review Leaves (<?= $pendingLeaves ?>)</a>
                         </div>
                     </div>
                 </div>

@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Login | DOIT Faculty Attendance</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -183,7 +184,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Password</label>
-                    <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+                    <div class="input-group">
+                        <input type="password" name="password" class="form-control" placeholder="Enter your password" required id="passwordInput">
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassword" style="border-radius: 0 14px 14px 0;">
+                            <i class="bi bi-eye" id="toggleIcon"></i>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-login">Sign in</button>
             </form>
@@ -193,16 +199,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span class="text-muted small">or</span>
                 <a href="register.php" class="register-link">Create an account</a>
             </div>
-
-            <hr>
-            <div class="demo-box">
-                <strong>Demo credentials</strong><br>
-                Admin: admin@doit.edu.ph / Admin@1234<br>
-                Faculty: john.smith@doit.edu.ph / Faculty@1234
-            </div>
         </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('passwordInput');
+    const toggleIcon = document.getElementById('toggleIcon');
+    
+    if (togglePassword && passwordInput && toggleIcon) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            // Toggle icon
+            if (type === 'password') {
+                toggleIcon.classList.remove('bi-eye-slash');
+                toggleIcon.classList.add('bi-eye');
+            } else {
+                toggleIcon.classList.remove('bi-eye');
+                toggleIcon.classList.add('bi-eye-slash');
+            }
+        });
+    }
+});
+</script>
 </body>
 </html>

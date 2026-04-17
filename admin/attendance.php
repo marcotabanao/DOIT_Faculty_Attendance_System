@@ -87,7 +87,9 @@ $stats = $summary->fetch();
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <h2>Daily Attendance</h2>
             
             <?php if ($message): ?>
@@ -244,5 +246,9 @@ function editAttendance(faculty_id, check_in, check_out, status, remarks) {
     document.getElementById('edit_remarks').value = remarks;
 }
 </script>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

@@ -1,8 +1,199 @@
-body{margin:0;font-family:sans-serif}
-.sidebar{width:220px;height:100vh;background:#1e2a38;color:#fff;position:fixed}
-.sidebar a{display:block;color:#fff;padding:10px;text-decoration:none}
-.main{margin-left:220px;padding:20px}
-.card{background:#f4f6f9;padding:15px;margin-bottom:10px;border-radius:8px}
-table{width:100%;border-collapse:collapse}
-td,th{border:1px solid #ccc;padding:8px}
-button{padding:6px 10px}
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: #f4f6f9;
+    color: #1e293b;
+    line-height: 1.5;
+}
+
+/* LAYOUT */
+.app {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* SIDEBAR (relative width, scrolls if needed) */
+.sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: linear-gradient(145deg, #7a0e0e 0%, #5e0b0b 100%);
+    color: #fef9e6;
+    transition: transform 0.25s ease;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+    z-index: 1000;
+}
+
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+/* MAIN CONTENT */
+.main-content {
+    flex: 1;
+    min-width: 0;          /* prevent overflow */
+    padding: 24px 32px;
+    overflow-x: auto;
+}
+
+/* TOP BAR */
+.top-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.page-title h2 {
+    font-size: clamp(1.4rem, 4vw, 1.8rem);
+    font-weight: 600;
+    margin: 0;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.user-badge {
+    background: white;
+    padding: 6px 16px;
+    border-radius: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    border: 1px solid #eef2f6;
+}
+
+/* STATS GRID — fully responsive, no overflow */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 24px;
+    padding: 20px;
+    transition: 0.2s;
+    border: 1px solid #edf2f7;
+    min-width: 0;          /* allow shrinking */
+}
+
+.stat-number {
+    font-size: clamp(1.6rem, 5vw, 2.2rem);
+    font-weight: 700;
+    word-break: break-word;
+}
+
+/* ATTENDANCE CARD */
+.attendance-card {
+    background: white;
+    border-radius: 28px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    border: 1px solid #eef2f6;
+}
+
+.attendance-flex {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+}
+
+.attendance-info {
+    flex: 1;
+    min-width: 180px;
+}
+
+.btn-checkin {
+    white-space: nowrap;
+    padding: 10px 24px;
+}
+
+/* TABLES — horizontal scroll on small screens */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+    min-width: 500px;
+    width: 100%;
+}
+
+.data-table th,
+.data-table td {
+    white-space: nowrap;
+    padding: 12px 16px;
+}
+
+/* For very narrow screens, allow text wrapping on table cells */
+@media (max-width: 640px) {
+    .data-table th,
+    .data-table td {
+        white-space: normal;
+        word-break: break-word;
+    }
+}
+
+/* BADGES */
+.badge-status, .badge {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+/* RESPONSIVE */
+@media (max-width: 992px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        transform: translateX(-100%);
+        height: 100%;
+        z-index: 1050;
+    }
+    .sidebar.mobile-open {
+        transform: translateX(0);
+    }
+    .main-content {
+        margin-left: 0;
+        padding: 20px;
+    }
+    .menu-toggle {
+        display: flex;
+    }
+}
+
+@media (max-width: 640px) {
+    .stats-grid {
+        gap: 16px;
+    }
+    .attendance-flex {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .btn-checkin {
+        text-align: center;
+        white-space: normal;
+    }
+    .top-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .user-badge {
+        align-self: flex-start;
+    }
+}

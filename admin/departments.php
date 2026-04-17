@@ -72,11 +72,13 @@ $departments = $pdo->query("SELECT * FROM departments ORDER BY name")->fetchAll(
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Departments</h2>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
-                    <i class="bi bi-plus-circle"></i> Add Department
+                    Add Department
                 </button>
             </div>
             
@@ -101,10 +103,10 @@ $departments = $pdo->query("SELECT * FROM departments ORDER BY name")->fetchAll(
                                 <td><?= formatDate($dept['created_at']) ?></td>
                                 <td>
                                     <a href="?edit=<?= $dept['id'] ?>" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editModal" onclick="editDepartment(<?= $dept['id'] ?>, '<?= htmlspecialchars($dept['code']) ?>', '<?= htmlspecialchars($dept['name']) ?>')">
-                                        <i class="bi bi-pencil"></i>
+                                        Edit
                                     </a>
                                     <a href="?delete=<?= $dept['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this department?')">
-                                        <i class="bi bi-trash"></i>
+                                        Delete
                                     </a>
                                 </td>
                             </tr>
@@ -158,5 +160,9 @@ function editDepartment(id, code, name) {
     document.getElementById('edit_name').value = name;
 }
 </script>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

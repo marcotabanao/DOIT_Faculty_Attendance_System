@@ -96,11 +96,13 @@ $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Su
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Faculty Schedules</h2>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
-                    <i class="bi bi-plus-circle"></i> Add Schedule
+                    Add Schedule
                 </button>
             </div>
             
@@ -139,10 +141,10 @@ $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Su
                                 <td>
                                     <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editModal"
                                             onclick="editSchedule(<?= $sch['id'] ?>, <?= $sch['faculty_id'] ?>, <?= $sch['semester_id'] ?>, <?= $sch['day_of_week'] ?>, '<?= $sch['time_in'] ?>', '<?= $sch['time_out'] ?>', '<?= htmlspecialchars($sch['subject_code']) ?>', '<?= htmlspecialchars($sch['room']) ?>')">
-                                        <i class="bi bi-pencil"></i>
+                                        Edit
                                     </button>
                                     <a href="?delete=<?= $sch['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this schedule?')">
-                                        <i class="bi bi-trash"></i>
+                                        Delete
                                     </a>
                                 </td>
                             </tr>
@@ -249,5 +251,9 @@ function editSchedule(id, faculty_id, semester_id, day, time_in, time_out, subje
     document.getElementById('edit_room').value = room;
 }
 </script>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>

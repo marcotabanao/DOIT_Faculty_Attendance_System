@@ -98,11 +98,13 @@ $semesters = $pdo->query("SELECT * FROM semesters ORDER BY start_date DESC")->fe
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 p-0"><?php include '../includes/admin-sidebar.php'; ?></div>
-        <div class="col-md-10 p-4">
+        <div class="col-md-10 p-0">
+            <?php include '../includes/admin-topnav.php'; ?>
+            <div class="p-4" style="padding-top: 80px !important;">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Semesters</h2>
                 <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
-                    <i class="bi bi-plus-circle"></i> Add Semester
+                    Add Semester
                 </button>
             </div>
             
@@ -149,15 +151,15 @@ $semesters = $pdo->query("SELECT * FROM semesters ORDER BY start_date DESC")->fe
                                 <td>
                                     <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#editModal"
                                             onclick="editSemester(<?= $sem['id'] ?>, '<?= htmlspecialchars($sem['name']) ?>', '<?= htmlspecialchars($sem['code']) ?>', '<?= $sem['start_date'] ?>', '<?= $sem['end_date'] ?>', <?= $sem['is_active'] ?>)">
-                                        <i class="bi bi-pencil"></i>
+                                        Edit
                                     </button>
                                     <?php if (!$sem['is_active']): ?>
                                         <a href="?set_active=<?= $sem['id'] ?>" class="btn btn-sm btn-success" onclick="return confirm('Activate this semester?')">
-                                            <i class="bi bi-check-circle"></i> Activate
+                                            Activate
                                         </a>
                                     <?php endif; ?>
                                     <a href="?delete=<?= $sem['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('Delete this semester? This will also delete related schedules.')">
-                                        <i class="bi bi-trash"></i>
+                                        Delete
                                     </a>
                                 </td>
                             </tr>
@@ -220,5 +222,9 @@ function editSemester(id, name, code, start, end, active) {
     document.getElementById('edit_active').checked = (active == 1);
 }
 </script>
+            </div>
+        </div>
+    </div>
+</div>
 </body>
 </html>
