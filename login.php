@@ -199,6 +199,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <span class="text-muted small">or</span>
                 <a href="register.php" class="register-link">Create an account</a>
             </div>
+            
+            <div class="text-center mt-4">
+                <a href="kiosk.php" class="btn btn-outline-info">
+                    <i class="bi bi-upc-scan"></i> Attendance Kiosk
+                </a>
+            </div>
         </div>
     </div>
 </div>

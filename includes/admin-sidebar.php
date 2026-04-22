@@ -42,14 +42,17 @@ $logo_path = getSetting($pdo, 'logo_path');
         <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'audit-logs.php' ? 'active' : '' ?>" href="audit-logs.php">
             <i class="bi bi-journal-text"></i> Audit Logs
         </a>
+        <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'faculty_scanner.php' ? 'active' : '' ?>" href="faculty_scanner.php">
+            <i class="bi bi-person-badge"></i> Faculty Scanner
+        </a>
+        <a class="nav-link" href="../kiosk_dtr.php" target="_blank">
+            <i class="bi bi-file-earmark-text"></i> DTR Generator
+        </a>
         <a class="nav-link" href="../kiosk.php" target="_blank">
             <i class="bi bi-upc-scan"></i> Attendance Kiosk
         </a>
         <!-- <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'settings.php' ? 'active' : '' ?>" href="settings.php">
             <i class="bi bi-gear"></i> Settings
         </a> -->
-        <a class="nav-link" href="../logout.php">
-            <i class="bi bi-box-arrow-right"></i> Logout
-        </a>
     </nav>
 </div>

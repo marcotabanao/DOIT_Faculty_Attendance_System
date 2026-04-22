@@ -92,7 +92,71 @@ try {
             throw new Exception('Check-out failed. Please try again.');
         }
     } else {
-        throw new Exception('Already checked out today. See you tomorrow!');
+        // Check for open session (check-in without check-out) for today
+        $openSessionStmt = $pdo->prepare("
+            SELECT * FROM attendance 
+            WHERE faculty_id = ? AND date = ? 
+            AND check_in_time IS NOT NULL 
+            AND check_out_time IS NULL 
+            ORDER BY check_in_time DESC 
+            LIMIT 1
+        ");
+        $openSessionStmt->execute([$faculty['id'], $today]);
+        $open_session = $openSessionStmt->fetch();
+        
+        if ($open_session) {
+            // Close open session with check-out
+            $update = $pdo->prepare("
+                UPDATE attendance 
+                SET check_out_time = ?, check_out_method = 'kiosk' 
+                WHERE id = ?
+            ");
+            if ($update->execute([$time, $open_session['id']])) {
+                logActivity($pdo, 'CLOSE_SESSION_KIOSK', 'attendance', $open_session['id'], "Closed open session via kiosk at $time");
+                
+                $response['success'] = true;
+                $response['message'] = "Session closed! Goodbye, " . htmlspecialchars($faculty['first_name']);
+                $response['faculty'] = [
+                    'name' => $faculty['first_name'] . ' ' . $faculty['last_name'],
+                    'employee_id' => $faculty['employee_id']
+                ];
+                $response['action'] = 'checkout';
+                $response['time'] = date('h:i A');
+            } else {
+                throw new Exception('Failed to close session. Please try again.');
+            }
+        } else {
+            // No open session, create new check-in
+            $day_of_week = date('N');
+            $schStmt = $pdo->prepare("SELECT time_in FROM schedules WHERE faculty_id = ? AND day_of_week = ? AND semester_id = (SELECT id FROM semesters WHERE is_active = 1 LIMIT 1)");
+            $schStmt->execute([$faculty['id'], $day_of_week]);
+            $schedule = $schStmt->fetch();
+            
+            $status = 'present';
+            $late_minutes = 0;
+            if ($schedule && $time > $schedule['time_in']) {
+                $status = 'late';
+                $late_minutes = (strtotime($time) - strtotime($schedule['time_in'])) / 60;
+            }
+            
+            $insert = $pdo->prepare("INSERT INTO attendance (faculty_id, date, check_in_time, status, late_minutes, check_in_method) VALUES (?, ?, ?, ?, 'kiosk')");
+            if ($insert->execute([$faculty['id'], $today, $time, $status, $late_minutes])) {
+                logActivity($pdo, 'OPEN_SESSION_KIOSK', 'attendance', $pdo->lastInsertId(), "Opened new session via kiosk at $time");
+                
+                $response['success'] = true;
+                $response['message'] = "Session started! Welcome, " . htmlspecialchars($faculty['first_name']);
+                $response['faculty'] = [
+                    'name' => $faculty['first_name'] . ' ' . $faculty['last_name'],
+                    'employee_id' => $faculty['employee_id'],
+                    'status' => $status,
+                    'late_minutes' => $late_minutes
+                ];
+                $response['action'] = 'checkin';
+                $response['time'] = date('h:i A');
+            } else {
+                throw new Exception('Failed to start session. Please try again.');
+            }
+        }
     }
     
 } catch (Exception $e) {

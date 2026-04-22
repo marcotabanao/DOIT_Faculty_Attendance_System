@@ -1,10 +1,13 @@
 <?php
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once 'includes/auth.php';
 
 // Kiosk mode - no authentication required for scanning
 // But we'll track kiosk sessions
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Initialize variables
 $message = '';
@@ -31,13 +34,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['scan_id'])) {
                 $today = date('Y-m-d');
                 $time = date('H:i:s');
                 
-                // Check if already checked in today
-                $stmt = $pdo->prepare("SELECT * FROM attendance WHERE faculty_id = ? AND date = ?");
-                $stmt->execute([$faculty['id'], $today]);
-                $today_attendance = $stmt->fetch();
+                // Check for any open session (check-in without check-out) for today
+                $openSessionStmt = $pdo->prepare("
+                    SELECT * FROM attendance 
+                    WHERE faculty_id = ? AND date = ? 
+                    AND check_in_time IS NOT NULL 
+                    AND check_out_time IS NULL 
+                    ORDER BY check_in_time DESC 
+                    LIMIT 1
+                ");
+                $openSessionStmt->execute([$faculty['id'], $today]);
+                $open_session = $openSessionStmt->fetch();
                 
-                if (!$today_attendance || !$today_attendance['check_in_time']) {
-                    // Check IN
+                if ($open_session) {
+                    // Close open session with check-out
+                    $update = $pdo->prepare("
+                        UPDATE attendance 
+                        SET check_out_time = ?, check_out_method = 'kiosk' 
+                        WHERE id = ?
+                    ");
+                    if ($update->execute([$time, $open_session['id']])) {
+                        logActivity($pdo, 'LOGOUT_KIOSK', 'attendance', $open_session['id'], "Logged out via kiosk at $time");
+                        $message = "Logout successful! Goodbye, " . htmlspecialchars($faculty['first_name']);
+                        $last_scan = $faculty;
+                    } else {
+                        $error = "Logout failed. Please try again.";
+                    }
+                } else {
+                    // No open session, create new check-in
                     $day_of_week = date('N');
                     $schStmt = $pdo->prepare("SELECT time_in FROM schedules WHERE faculty_id = ? AND day_of_week = ? AND semester_id = (SELECT id FROM semesters WHERE is_active = 1 LIMIT 1)");
                     $schStmt->execute([$faculty['id'], $day_of_week]);
@@ -52,24 +76,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['scan_id'])) {
                     
                     $insert = $pdo->prepare("INSERT INTO attendance (faculty_id, date, check_in_time, status, late_minutes, check_in_method) VALUES (?, ?, ?, ?, ?, 'kiosk')");
                     if ($insert->execute([$faculty['id'], $today, $time, $status, $late_minutes])) {
-                        logActivity($pdo, 'CHECKIN_KIOSK', 'attendance', $pdo->lastInsertId(), "Checked in via kiosk at $time");
-                        $message = "Check-in successful! Welcome, " . htmlspecialchars($faculty['first_name']);
+                        logActivity($pdo, 'LOGIN_KIOSK', 'attendance', $pdo->lastInsertId(), "Logged in via kiosk at $time");
+                        $message = "Login successful! Welcome, " . htmlspecialchars($faculty['first_name']);
                         $last_scan = $faculty;
                     } else {
-                        $error = "Check-in failed. Please try again.";
+                        $error = "Login failed. Please try again.";
                     }
-                } elseif (!$today_attendance['check_out_time']) {
-                    // Check OUT
-                    $update = $pdo->prepare("UPDATE attendance SET check_out_time = ?, check_out_method = 'kiosk' WHERE id = ?");
-                    if ($update->execute([$time, $today_attendance['id']])) {
-                        logActivity($pdo, 'CHECKOUT_KIOSK', 'attendance', $today_attendance['id'], "Checked out via kiosk at $time");
-                        $message = "Check-out successful! Goodbye, " . htmlspecialchars($faculty['first_name']);
-                        $last_scan = $faculty;
-                    } else {
-                        $error = "Check-out failed. Please try again.";
-                    }
-                } else {
-                    $error = "Already checked out today. See you tomorrow!";
                 }
             }
         } catch (Exception $e) {
@@ -239,24 +251,22 @@ try {
                 <form method="POST" id="scanForm" class="mt-4">
                     <div class="scan-area">
                         <i class="bi bi-upc-scan scan-icon"></i>
-                        <h4>Ready to Scan</h4>
-                        <p class="text-muted">Place your ID card near the scanner</p>
+                        <h4>RFID Scanner Ready</h4>
+                        <p class="text-muted">Tap your RFID card on the scanner</p>
                         <input type="text" 
                                name="scan_id" 
                                class="form-control form-control-lg auto-focus" 
-                               placeholder="ID will auto-scan..." 
+                               placeholder="RFID will auto-scan..." 
                                autocomplete="off"
-                               required>
+                               required
+                               style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;">
                         <small class="text-muted d-block mt-2">
-                            <i class="bi bi-info-circle"></i> System will automatically process scanned IDs
+                            <i class="bi bi-info-circle"></i> System will automatically determine Check-In or Check-Out
                         </small>
                     </div>
                     <div class="mt-3 text-center">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-arrow-clockwise"></i> Manual Scan
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> Clear
+                        <button type="button" class="btn btn-secondary btn-lg" onclick="clearForm()">
+                            <i class="bi bi-x-circle"></i> Reset
                         </button>
                     </div>
                 </form>
@@ -291,6 +301,13 @@ try {
                 <?php endif; ?>
                 
                 <div class="mt-4 text-center">
+                    <a href="login.php" class="btn btn-outline-secondary btn-sm me-2">
+                        <i class="bi bi-arrow-left"></i> Back to Login
+                    </a>
+                    <a href="kiosk_dtr.php" class="btn btn-info btn-sm">
+                        <i class="bi bi-file-earmark-text"></i> Print DTR
+                    </a>
+                    <br><br>
                     <small class="text-muted">
                         <i class="bi bi-shield-check"></i> Secure Attendance System | DOIT Faculty Portal
                     </small>
@@ -349,6 +366,20 @@ try {
             document.querySelector('input[name="scan_id"]').value = '';
             document.querySelector('input[name="scan_id"]').focus();
         }
+        
+        // Auto-submit form when scan occurs
+        const scanInput = document.querySelector('input[name="scan_id"]');
+        scanInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            if (value.length > 0) {
+                // Small delay to ensure full scan is captured
+                setTimeout(() => {
+                    if (this.value.trim().length > 0) {
+                        document.getElementById('scanForm').submit();
+                    }
+                }, 100);
+            }
+        });
         
         // Auto-refresh page every 5 minutes to keep session fresh
         setTimeout(() => {

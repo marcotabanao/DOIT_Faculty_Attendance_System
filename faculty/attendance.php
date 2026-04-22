@@ -115,7 +115,7 @@ $not_marked = $total_days - ($present + $late + $absent + $on_leave);
                             <div class="col-auto"><label>Select Month</label><input type="month" name="month" class="form-control" value="<?= $month ?>" onchange="console.log('Month changed to:', this.value)"></div>
                             <div class="col-auto d-flex align-items-end"><button type="submit" class="btn btn-primary">View</button></div>
                         </form>
-                        <?php if ($_GET['month']): ?>
+                        <?php if (isset($_GET['month'])): ?>
                             <div class="alert alert-info mt-3">
                                 <small>Currently viewing: <?= date('F Y', strtotime($month)) ?> (Month parameter: <?= htmlspecialchars($month) ?>)</small><br>
                                 <small>Records found: <?= $debug_count ?></small>

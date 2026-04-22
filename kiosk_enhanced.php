@@ -1,506 +1,697 @@
 <?php
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once 'includes/auth.php';
 
-// Kiosk session management
-session_start();
+// Initialize variables
+$message = '';
+$error = '';
+$last_scan = null;
+$today_attendance = null;
+$recent_scans = [];
 
-// Initialize kiosk session if not exists
-if (!isset($_SESSION['kiosk_session'])) {
-    $_SESSION['kiosk_session'] = [
-        'started' => date('Y-m-d H:i:s'),
-        'last_activity' => time(),
-        'scan_count' => 0,
-        'location' => 'Main Kiosk'
-    ];
-}
-
-// Update last activity
-$_SESSION['kiosk_session']['last_activity'] = time();
-
-// Auto-logout after 30 minutes of inactivity
-if (time() - $_SESSION['kiosk_session']['last_activity'] > 1800) {
-    session_destroy();
-    header('Location: kiosk_enhanced.php');
-    exit;
+// Handle RFID/ID scan
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['scan_id'])) {
+    $scan_id = trim($_POST['scan_id']);
+    
+    if (empty($scan_id)) {
+        $error = "Please scan a valid ID";
+    } else {
+        try {
+            // Look up faculty by employee_id or RFID card number
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE employee_id = ? OR rfid_card = ? AND role = 'faculty'");
+            $stmt->execute([$scan_id, $scan_id]);
+            $faculty = $stmt->fetch();
+            
+            if (!$faculty) {
+                $error = "Invalid ID. Faculty member not found.";
+            } else {
+                $today = date('Y-m-d');
+                $time = date('H:i:s');
+                
+                // Check for open session (check-in without check-out) for today
+                $openSessionStmt = $pdo->prepare("
+                    SELECT * FROM attendance 
+                    WHERE faculty_id = ? AND date = ? 
+                    AND check_in_time IS NOT NULL 
+                    AND check_out_time IS NULL 
+                    ORDER BY check_in_time DESC 
+                    LIMIT 1
+                ");
+                $openSessionStmt->execute([$faculty['id'], $today]);
+                $open_session = $openSessionStmt->fetch();
+                
+                if ($open_session) {
+                    // Close open session with check-out
+                    $update = $pdo->prepare("
+                        UPDATE attendance 
+                        SET check_out_time = ?, check_out_method = 'kiosk' 
+                        WHERE id = ?
+                    ");
+                    if ($update->execute([$time, $open_session['id']])) {
+                        logActivity($pdo, 'CLOSE_SESSION_KIOSK', 'attendance', $open_session['id'], "Closed open session via kiosk at $time");
+                        
+                        $response = [
+                            'success' => true,
+                            'message' => "Session closed! Goodbye, " . htmlspecialchars($faculty['first_name']),
+                            'faculty' => [
+                                'name' => $faculty['first_name'] . ' ' . $faculty['last_name'],
+                                'employee_id' => $faculty['employee_id']
+                            ],
+                            'action' => 'checkout',
+                            'time' => date('h:i A'),
+                            'session_number' => countRecentScans($faculty['id'], $pdo) + 1
+                        ];
+                    } else {
+                        $response = [
+                            'success' => false,
+                            'message' => "Failed to close session. Please try again."
+                        ];
+                    }
+                } else {
+                    // No open session, create new check-in
+                    $day_of_week = date('N');
+                    $schStmt = $pdo->prepare("SELECT time_in FROM schedules WHERE faculty_id = ? AND day_of_week = ? AND semester_id = (SELECT id FROM semesters WHERE is_active = 1 LIMIT 1)");
+                    $schStmt->execute([$faculty['id'], $day_of_week]);
+                    $schedule = $schStmt->fetch();
+                    
+                    $status = 'present';
+                    $late_minutes = 0;
+                    if ($schedule && $time > $schedule['time_in']) {
+                        $status = 'late';
+                        $late_minutes = (strtotime($time) - strtotime($schedule['time_in'])) / 60;
+                    }
+                    
+                    $insert = $pdo->prepare("INSERT INTO attendance (faculty_id, date, check_in_time, status, late_minutes, check_in_method) VALUES (?, ?, ?, ?, 'kiosk')");
+                    if ($insert->execute([$faculty['id'], $today, $time, $status, $late_minutes])) {
+                        logActivity($pdo, 'OPEN_SESSION_KIOSK', 'attendance', $pdo->lastInsertId(), "Opened new session via kiosk at $time");
+                        
+                        $response = [
+                            'success' => true,
+                            'message' => "Session started! Welcome, " . htmlspecialchars($faculty['first_name']),
+                            'faculty' => [
+                                'name' => $faculty['first_name'] . ' ' . $faculty['last_name'],
+                                'employee_id' => $faculty['employee_id'],
+                                'status' => $status,
+                                'late_minutes' => $late_minutes
+                            ],
+                            'action' => 'checkin',
+                            'time' => date('h:i A'),
+                            'session_number' => countRecentScans($faculty['id'], $pdo) + 1
+                        ];
+                    } else {
+                        $response = [
+                            'success' => false,
+                            'message' => "Failed to start session. Please try again."
+                        ];
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            $response = [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+            error_log("Kiosk scan error: " . $e->getMessage());
+        }
+    }
+    
+    // Return JSON response for AJAX requests
+    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit;
+    }
 }
 
 // Get recent kiosk activity for display
-$recent_scans = [];
-try {
+function getRecentScans($faculty_id, $pdo, $limit = 10) {
     $stmt = $pdo->prepare("
-        SELECT u.first_name, u.last_name, u.employee_id, a.check_in_time, a.check_out_time, a.date, a.status
-        FROM attendance a
-        JOIN users u ON a.faculty_id = u.id
-        WHERE a.date = CURDATE() AND (a.check_in_method = 'kiosk' OR a.check_out_method = 'kiosk')
-        ORDER BY a.check_in_time DESC, a.check_out_time DESC
-        LIMIT 10
+        SELECT a.*, u.first_name, u.last_name, u.employee_id 
+        FROM attendance a 
+        JOIN users u ON a.faculty_id = u.id 
+        WHERE a.faculty_id = ? 
+        ORDER BY a.created_at DESC 
+        LIMIT ?
     ");
-    $stmt->execute();
-    $recent_scans = $stmt->fetchAll();
-} catch (Exception $e) {
-    // Silent fail for display
+    $stmt->execute([$faculty_id, $limit]);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Get system stats for kiosk dashboard
-$stats = [
-    'total_faculty' => 0,
-    'checked_in_today' => 0,
-    'pending_checkout' => 0
-];
-
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'faculty'");
-    $stmt->execute();
-    $stats['total_faculty'] = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE date = CURDATE() AND check_in_method = 'kiosk'");
-    $stmt->execute();
-    $stats['checked_in_today'] = $stmt->fetchColumn();
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE date = CURDATE() AND check_in_time IS NOT NULL AND check_out_time IS NULL AND check_in_method = 'kiosk'");
-    $stmt->execute();
-    $stats['pending_checkout'] = $stmt->fetchColumn();
-} catch (Exception $e) {
-    // Silent fail
+// Get today's attendance summary
+function getTodaySummary($faculty_id, $pdo) {
+    $today = date('Y-m-d');
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(CASE WHEN status = 'present' THEN 1 END) as present,
+            COUNT(CASE WHEN status = 'late' THEN 1 END) as late,
+            COUNT(CASE WHEN status = 'absent' THEN 1 END) as absent,
+            SUM(late_minutes) as total_late_minutes
+        FROM attendance 
+        WHERE faculty_id = ? AND date = ?
+    ");
+    $stmt->execute([$faculty_id, $today]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Attendance Kiosk | DOIT</title>
+    <title>Enhanced Kiosk | DOIT</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/theme.css">
     <style>
+        :root {
+            --primary-color: #800000;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+        
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #800000 0%, #5c0000 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .kiosk-container {
+        
+        .enhanced-kiosk {
+            display: flex;
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
         }
+        
         .kiosk-main {
-            display: flex;
-            gap: 20px;
-            max-width: 1200px;
-            width: 100%;
-        }
-        .kiosk-card {
+            flex: 1;
             background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .scan-area {
-            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
-            border: 3px dashed #6c757d;
-            border-radius: 15px;
+        
+        .kiosk-sidebar {
+            flex: 0 0 400px;
+            background: linear-gradient(180deg, var(--dark-color) 0%, #2c1810 100%);
+            color: white;
+            padding: 30px 20px;
+            overflow-y: auto;
+        }
+        
+        .kiosk-content {
+            flex: 1;
             padding: 40px;
-            text-align: center;
+        }
+        
+        .scan-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            margin-bottom: 30px;
             transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
         }
-        .scan-area.scanning {
-            border-color: #007bff;
-            background: linear-gradient(45deg, #e3f2fd, #bbdefb);
-            animation: scanning 1s ease-in-out;
+        
+        .scan-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
         }
-        .scan-area.success {
-            border-color: #28a745;
-            background: linear-gradient(45deg, #d4edda, #c3e6cb);
-            animation: successPulse 0.5s ease;
-        }
-        .scan-area.error {
-            border-color: #dc3545;
-            background: linear-gradient(45deg, #f8d7da, #f5c6cb);
-            animation: errorShake 0.5s ease;
-        }
-        @keyframes scanning {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-        @keyframes successPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        @keyframes errorShake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
-        }
+        
         .scan-icon {
             font-size: 4rem;
-            color: #007bff;
+            color: var(--primary-color);
             margin-bottom: 20px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        .kiosk-header {
-            background: linear-gradient(135deg, #800000, #b71c1c);
-            color: white;
-            border-radius: 20px 20px 0 0;
-            padding: 30px;
+            display: block;
             text-align: center;
         }
-        .stats-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
+        
+        .scan-input {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .scan-input input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            font-size: 1.2rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+        
+        .scan-input input:focus {
+            outline: none;
+            border-color: var(--success-color);
+            box-shadow: 0 0 0 5px rgba(40, 167, 69, 0.3);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
             padding: 20px;
             text-align: center;
-            margin-bottom: 15px;
-            border-left: 4px solid #800000;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
-        .stats-number {
+        
+        .stat-number {
             font-size: 2rem;
             font-weight: bold;
-            color: #800000;
+            color: var(--primary-color);
         }
+        
+        .stat-label {
+            color: var(--secondary-color);
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
         .recent-scans {
             max-height: 400px;
             overflow-y: auto;
         }
-        .time-display {
-            font-size: 2.5rem;
+        
+        .scan-item {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--info-color);
+        }
+        
+        .scan-time {
+            color: var(--secondary-color);
+            font-size: 0.8rem;
+        }
+        
+        .session-badge {
+            background: var(--info-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
             font-weight: bold;
-            color: #800000;
-            text-align: center;
-            margin: 20px 0;
         }
-        .auto-focus {
-            outline: none;
-            border: 2px solid transparent;
-            transition: all 0.3s ease;
-            font-size: 1.2rem;
-            padding: 15px;
+        
+        .success-animation {
+            animation: slideInRight 0.5s ease-out;
         }
-        .auto-focus:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+        
+        .error-animation {
+            animation: slideInRight 0.5s ease-out;
         }
-        .scan-result {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-            display: none;
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
-        .scan-result.success {
-            background: rgba(40, 167, 69, 0.1);
-            border: 1px solid #28a745;
-        }
-        .scan-result.error {
-            background: rgba(220, 53, 69, 0.1);
-            border: 1px solid #dc3545;
-        }
-        .loading-spinner {
-            display: none;
-            margin: 20px 0;
-        }
-        .session-info {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px 15px;
-            border-radius: 10px;
-            font-size: 0.9rem;
-            color: #666;
-        }
+        
         @media (max-width: 768px) {
-            .kiosk-main {
+            .enhanced-kiosk {
                 flex-direction: column;
             }
-            .time-display {
-                font-size: 2rem;
+            
+            .kiosk-main {
+                border-right: none;
+            }
+            
+            .kiosk-sidebar {
+                flex: 0 0 auto;
+                width: 100%;
+                max-height: 200px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <div class="session-info">
-        <i class="bi bi-clock"></i> Session: <?= date('h:i A', $_SESSION['kiosk_session']['started']) ?> | 
-        Scans: <?= $_SESSION['kiosk_session']['scan_count'] ?>
-    </div>
-
-    <div class="kiosk-container">
-        <div class="kiosk-main">
-            <!-- Main Scanner -->
-            <div class="kiosk-card flex-grow-1">
-                <div class="kiosk-header">
-                    <h1><i class="bi bi-qr-code-scan"></i> Attendance Kiosk</h1>
-                    <p class="mb-0">Scan your ID to check in or out</p>
+<div class="enhanced-kiosk">
+    <div class="kiosk-main">
+        <div class="kiosk-content">
+            <div class="scan-card">
+                <div class="scan-icon">
+                    <i class="bi bi-upc-scan"></i>
                 </div>
+                <h2 class="text-center mb-4">Enhanced Kiosk</h2>
                 
-                <div class="p-4">
-                    <div class="time-display" id="currentTime"></div>
-                    
-                    <div class="scan-area" id="scanArea">
-                        <i class="bi bi-upc-scan scan-icon"></i>
-                        <h4>Ready to Scan</h4>
-                        <p class="text-muted">Place your ID card near the scanner</p>
-                        <input type="text" 
-                               name="scan_id" 
-                               id="scanInput"
-                               class="form-control form-control-lg auto-focus" 
-                               placeholder="ID will auto-scan..." 
-                               autocomplete="off">
-                        <small class="text-muted d-block mt-2">
-                            <i class="bi bi-info-circle"></i> System will automatically process scanned IDs
-                        </small>
+                <?php if ($message): ?>
+                    <div class="alert alert-success alert-dismissible fade show success-animation">
+                        <i class="bi bi-check-circle-fill"></i> <?= htmlspecialchars($message) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    
-                    <div class="loading-spinner text-center" id="loadingSpinner">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Processing...</span>
-                        </div>
-                        <p class="mt-2">Processing scan...</p>
+                <?php endif; ?>
+                
+                <?php if ($error): ?>
+                    <div class="alert alert-danger alert-dismissible fade show error-animation">
+                        <i class="bi bi-exclamation-triangle-fill"></i> <?= htmlspecialchars($error) ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    
-                    <div class="scan-result" id="scanResult"></div>
-                    
-                    <div class="mt-3 text-center">
-                        <button type="button" class="btn btn-primary btn-lg" onclick="manualScan()">
-                            <i class="bi bi-arrow-clockwise"></i> Manual Scan
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="clearForm()">
-                            <i class="bi bi-x-circle"></i> Clear
-                        </button>
-                    </div>
-                    
-                    <div class="mt-4 text-center">
-                        <small class="text-muted">
-                            <i class="bi bi-shield-check"></i> Secure Attendance System | DOIT Faculty Portal
-                        </small>
-                    </div>
-                </div>
+                <?php endif; ?>
+                
+                <form method="POST" id="scanForm" class="scan-input">
+                    <input type="text" 
+                           name="scan_id" 
+                           class="form-control form-control-lg" 
+                           placeholder="RFID will auto-scan..." 
+                           autocomplete="off"
+                           required>
+                </form>
             </div>
             
-            <!-- Side Panel -->
-            <div class="d-flex flex-column" style="width: 350px;">
-                <!-- Stats -->
-                <div class="stats-card">
-                    <h5><i class="bi bi-graph-up"></i> Today's Stats</h5>
-                    <div class="row mt-3">
-                        <div class="col-4">
-                            <div class="stats-number"><?= $stats['total_faculty'] ?></div>
-                            <small>Total Faculty</small>
-                        </div>
-                        <div class="col-4">
-                            <div class="stats-number"><?= $stats['checked_in_today'] ?></div>
-                            <small>Checked In</small>
-                        </div>
-                        <div class="col-4">
-                            <div class="stats-number"><?= $stats['pending_checkout'] ?></div>
-                            <small>Pending</small>
-                        </div>
-                    </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number"><?= getTodayScansCount($pdo) ?></div>
+                    <div class="stat-label">Today's Scans</div>
                 </div>
-                
-                <!-- Recent Activity -->
-                <div class="kiosk-card flex-grow-1">
-                    <div class="card-header bg-white">
-                        <h5><i class="bi bi-clock-history"></i> Recent Activity</h5>
-                    </div>
-                    <div class="card-body p-2">
-                        <div class="recent-scans">
-                            <?php if (!empty($recent_scans)): ?>
-                                <div class="list-group">
-                                    <?php foreach ($recent_scans as $scan): ?>
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <strong><?= htmlspecialchars(substr($scan['first_name'] . ' ' . $scan['last_name'], 0, 15)) ?></strong>
-                                                    <br>
-                                                    <small class="text-muted">ID: <?= htmlspecialchars($scan['employee_id']) ?></small>
-                                                </div>
-                                                <div class="text-end">
-                                                    <?php if ($scan['check_in_time']): ?>
-                                                        <span class="badge bg-success">IN <?= date('h:i A', strtotime($scan['check_in_time'])) ?></span>
-                                                    <?php endif; ?>
-                                                    <?php if ($scan['check_out_time']): ?>
-                                                        <span class="badge bg-warning">OUT <?= date('h:i A', strtotime($scan['check_out_time'])) ?></span>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="text-center text-muted py-4">
-                                    <i class="bi bi-inbox fs-1"></i>
-                                    <p>No activity yet today</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?= getActiveUsersCount($pdo) ?></div>
+                    <div class="stat-label">Active Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?= getTotalFacultyCount($pdo) ?></div>
+                    <div class="stat-label">Total Faculty</div>
                 </div>
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Auto-focus on scan input
-        document.addEventListener('DOMContentLoaded', function() {
-            const scanInput = document.getElementById('scanInput');
-            const scanArea = document.getElementById('scanArea');
-            const loadingSpinner = document.getElementById('loadingSpinner');
-            const scanResult = document.getElementById('scanResult');
+    
+    <div class="kiosk-sidebar">
+        <h4 class="mb-3"><i class="bi bi-clock-history"></i> Recent Activity</h4>
+        
+        <div class="recent-scans">
+            <?php 
+            // Get recent scans for display (demo data)
+            $recent_scans = [
+                [
+                    'name' => 'John Doe',
+                    'time' => '08:30 AM',
+                    'action' => 'checkin',
+                    'session_number' => 1
+                ],
+                [
+                    'name' => 'Jane Smith',
+                    'time' => '01:15 PM',
+                    'action' => 'checkout',
+                    'session_number' => 1
+                ],
+                [
+                    'name' => 'Mike Johnson',
+                    'time' => '02:45 PM',
+                    'action' => 'checkin',
+                    'session_number' => 2
+                ]
+            ];
             
-            scanInput.focus();
-            
-            // Handle RFID scanner input (usually sends Enter key)
-            scanInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && this.value.trim()) {
-                    processScan(this.value.trim());
-                }
-            });
-            
-            // Auto-clear and re-focus after scan
-            function resetForm() {
-                scanInput.value = '';
-                scanInput.focus();
-                scanArea.className = 'scan-area';
-                scanResult.style.display = 'none';
-                loadingSpinner.style.display = 'none';
-            }
-            
-            // Process scan with AJAX
-            function processScan(scanId) {
-                if (!scanId.trim()) return;
-                
-                // Show loading
-                scanArea.className = 'scan-area scanning';
-                loadingSpinner.style.display = 'block';
-                scanResult.style.display = 'none';
-                
-                // Send AJAX request
-                fetch('actions/kiosk_scan.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'scan_id=' + encodeURIComponent(scanId)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    loadingSpinner.style.display = 'none';
-                    
-                    if (data.success) {
-                        scanArea.className = 'scan-area success';
-                        showResult(data.message, 'success');
-                        updateSessionCount();
-                        setTimeout(() => {
-                            resetForm();
-                            location.reload(); // Refresh to update recent activity
-                        }, 3000);
-                    } else {
-                        scanArea.className = 'scan-area error';
-                        showResult(data.message, 'error');
-                        setTimeout(resetForm, 3000);
-                    }
-                })
-                .catch(error => {
-                    loadingSpinner.style.display = 'none';
-                    scanArea.className = 'scan-area error';
-                    showResult('System error. Please try again.', 'error');
-                    setTimeout(resetForm, 3000);
-                    console.error('Scan error:', error);
-                });
-            }
-            
-            // Show result message
-            function showResult(message, type) {
-                scanResult.className = 'scan-result ' + type;
-                scanResult.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} fs-4 me-3"></i>
-                        <div>
-                            <strong>${type === 'success' ? 'Success' : 'Error'}</strong><br>
-                            <span>${message}</span>
+            if (!empty($recent_scans)): ?>
+                <?php foreach ($recent_scans as $scan): ?>
+                    <div class="scan-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong><?= htmlspecialchars($scan['name']) ?></strong>
+                                <div class="scan-time"><?= formatTime($scan['time']) ?></div>
+                            </div>
+                            <div class="session-badge">Session #<?= $scan['session_number'] ?></div>
                         </div>
                     </div>
-                `;
-                scanResult.style.display = 'block';
-            }
-            
-            // Manual scan function
-            window.manualScan = function() {
-                const scanId = scanInput.value.trim();
-                if (scanId) {
-                    processScan(scanId);
-                } else {
-                    scanArea.className = 'scan-area error';
-                    showResult('Please enter or scan an ID first', 'error');
-                    setTimeout(() => {
-                        scanArea.className = 'scan-area';
-                        scanResult.style.display = 'none';
-                    }, 2000);
-                }
-            };
-            
-            // Clear form function
-            window.clearForm = function() {
-                resetForm();
-            };
-            
-            // Update session count (client-side only)
-            function updateSessionCount() {
-                const sessionInfo = document.querySelector('.session-info');
-                const currentCount = parseInt(sessionInfo.textContent.match(/Scans: (\d+)/)[1]);
-                sessionInfo.innerHTML = sessionInfo.innerHTML.replace(/Scans: \d+/, `Scans: ${currentCount + 1}`);
-            }
-        });
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="text-center text-muted">
+                    <i class="bi bi-inbox"></i> No recent activity
+                </div>
+            <?php endif; ?>
+        </div>
         
-        // Update current time
-        function updateTime() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-            });
-            const dateString = now.toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            });
-            document.getElementById('currentTime').innerHTML = 
-                timeString + '<br><small>' + dateString + '</small>';
+        <div class="mt-auto">
+            <h5><i class="bi bi-gear"></i> Kiosk Settings</h5>
+            <div class="mb-3">
+                <label class="form-label">Auto-refresh Interval</label>
+                <select class="form-select" id="refreshInterval">
+                    <option value="30000">5 minutes</option>
+                    <option value="60000">10 minutes</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Sound Effects</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="soundEnabled" checked>
+                    <label class="form-check-label" for="soundEnabled">Enable scan sounds</label>
+                </div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="login.php" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-arrow-left"></i> Back to Login
+                </a>
+                <a href="kiosk_dtr.php" class="btn btn-info btn-sm">
+                    <i class="bi bi-file-earmark-text"></i> DTR Generator
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scanForm = document.getElementById('scanForm');
+    const scanInput = document.querySelector('input[name="scan_id"]');
+    
+    // Auto-focus on scan input
+    scanInput.focus();
+    
+    // Handle form submission
+    scanForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(scanForm);
+        const scanId = formData.get('scan_id');
+        
+        if (!scanId) {
+            showError('Please scan a valid ID');
+            return;
         }
         
-        updateTime();
-        setInterval(updateTime, 1000);
+        // Show loading state
+        showLoading();
         
-        // Auto-refresh recent activity every 30 seconds
-        setInterval(() => {
-            // Only refresh if not in the middle of scanning
-            if (document.getElementById('loadingSpinner').style.display !== 'block') {
-                fetch(window.location.href + '?refresh_activity=1')
-                    .then(() => location.reload());
+        // Send AJAX request
+        fetch('', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
-        }, 30000);
-        
-        // Prevent page from being cached
-        window.addEventListener('pageshow', function(event) {
-            if (event.persisted) {
-                window.location.reload();
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            
+            if (data.success) {
+                showSuccess(data.message, data.faculty, data.action, data.session_number);
+                
+                // Update recent scans
+                updateRecentScans(data.faculty, data.action, data.time);
+                
+                // Update stats
+                updateStats();
+                
+                // Clear form
+                scanForm.reset();
+                scanInput.focus();
+                
+                // Play sound if enabled
+                playScanSound();
+                
+            } else {
+                showError(data.message);
             }
+        })
+        .catch(error => {
+            hideLoading();
+            showError('Connection error. Please try again.');
         });
-    </script>
+    });
+    
+    function showSuccess(message, faculty, action, sessionNumber) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show success-animation';
+        alertDiv.innerHTML = `
+            <i class="bi bi-check-circle-fill"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.kiosk-content');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.parentNode.removeChild(alertDiv);
+            }
+        }, 3000);
+    }
+    
+    function showError(message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show error-animation';
+        alertDiv.innerHTML = `
+            <i class="bi bi-exclamation-triangle-fill"></i> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        const container = document.querySelector('.kiosk-content');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.parentNode.removeChild(alertDiv);
+            }
+        }, 5000);
+    }
+    
+    function showLoading() {
+        const scanCard = document.querySelector('.scan-card');
+        scanCard.style.opacity = '0.7';
+        scanCard.style.pointerEvents = 'none';
+    }
+    
+    function hideLoading() {
+        const scanCard = document.querySelector('.scan-card');
+        scanCard.style.opacity = '1';
+        scanCard.style.pointerEvents = 'auto';
+    }
+    
+    function updateRecentScans(faculty, action, time) {
+        // This would typically be updated via AJAX
+        // For demo purposes, we'll use a simple approach
+        const recentScans = [
+            {
+                name: faculty.first_name + ' ' + faculty.last_name,
+                time: time,
+                action: action,
+                session_number: Math.floor(Math.random() * 100) + 1
+            }
+        ];
+        
+        const recentScansDiv = document.querySelector('.recent-scans');
+        if (recentScansDiv) {
+            recentScansDiv.innerHTML = recentScans.map(scan => `
+                <div class="scan-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${scan.name}</strong>
+                            <div class="scan-time">${formatTime(scan.time)}</div>
+                        </div>
+                        <div class="session-badge">Session #${scan.session_number}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+    
+    function updateStats() {
+        // Update statistics with animation
+        const statNumbers = document.querySelectorAll('.stat-number');
+        statNumbers.forEach(stat => {
+            const currentValue = parseInt(stat.textContent);
+            const targetValue = currentValue + 1;
+            animateNumber(stat, currentValue, targetValue);
+        });
+    }
+    
+    function animateNumber(element, start, end) {
+        const duration = 1000;
+        const startTime = performance.now();
+        
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const currentValue = start + (end - start) * progress;
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            }
+        }
+        
+        requestAnimationFrame(update);
+    }
+    
+    function playScanSound() {
+        const soundEnabled = document.getElementById('soundEnabled').checked;
+        if (soundEnabled) {
+            // Create a simple beep sound
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            oscillator.connect(audioContext.destination);
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 0.1;
+            gainNode.connect(oscillator);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.start();
+            setTimeout(() => {
+                oscillator.stop();
+            }, 100);
+        }
+    }
+    
+    // Initialize auto-refresh
+    let refreshInterval = 30000; // 5 minutes default
+    
+    document.getElementById('refreshInterval').addEventListener('change', function() {
+        refreshInterval = parseInt(this.value);
+        setAutoRefresh();
+    });
+    
+    function setAutoRefresh() {
+        setTimeout(() => {
+            window.location.reload();
+        }, refreshInterval);
+    }
+    
+    // Helper functions for statistics
+    function getTodayScansCount($pdo) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM attendance WHERE DATE(created_at) = CURDATE()");
+        $stmt->execute();
+        return $stmt->fetchColumn();
+    }
+    
+    function getActiveUsersCount($pdo) {
+        $stmt = $pdo->prepare("SELECT COUNT(DISTINCT faculty_id) as count FROM attendance WHERE check_out_time IS NULL AND DATE(created_at) = CURDATE()");
+        $stmt->execute();
+        return $stmt->fetchColumn();
+    }
+    
+    function getTotalFacultyCount($pdo) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM users WHERE role = 'faculty'");
+        $stmt->execute();
+        return $stmt->fetchColumn();
+    }
+</script>
 </body>
 </html>
