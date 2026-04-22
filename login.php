@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 1.5rem;
             text-align: center;
             font-size: 0.8rem;
-            color: #4a5568;
+            color: #4d586b;
             border: 1px solid #edf2f7;
         }
         .demo-box strong { color: #800000; }

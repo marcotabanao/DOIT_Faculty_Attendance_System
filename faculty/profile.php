@@ -102,7 +102,7 @@ $csrf_token = generateCSRFToken();
         .profile-card {
             border: none;
             border-radius: 20px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+            box-shadow: 0 2px 12px rgba(22, 21, 21, 0.04);
         }
         .profile-sidebar {
             text-align: center;
@@ -115,7 +115,7 @@ $csrf_token = generateCSRFToken();
             height: 150px;
             object-fit: cover;
             border-radius: 50%;
-            border: 3px solid #800000;
+            border: 3px solid #7e0505;
             margin-bottom: 1rem;
         }
     </style>
