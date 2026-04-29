@@ -20,28 +20,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_attendance'])) {
     $status = $_POST['status'];
     $remarks = sanitizeInput($_POST['remarks'] ?? '');
     
-    // Check if attendance already exists
-    $stmt = $pdo->prepare("SELECT id FROM attendance WHERE faculty_id = ? AND date = ?");
-    $stmt->execute([$faculty_id, $date]);
-    $exists = $stmt->fetch();
+    // Validate that faculty_id exists in users table
+    $faculty_check = $pdo->prepare("SELECT id FROM users WHERE id = ? AND role = 'faculty' AND status = 'active'");
+    $faculty_check->execute([$faculty_id]);
+    $faculty_exists = $faculty_check->fetch();
+    
+    if (!$faculty_exists) {
+        $error = "Invalid faculty member selected.";
+    } else {
+        // Check if attendance already exists
+        $stmt = $pdo->prepare("SELECT id FROM attendance WHERE faculty_id = ? AND date = ?");
+        $stmt->execute([$faculty_id, $date]);
+        $exists = $stmt->fetch();
     
     if ($exists) {
-        // Update
-        $update = $pdo->prepare("UPDATE attendance SET check_in_time = ?, check_out_time = ?, status = ?, remarks = ?, updated_at = NOW() WHERE faculty_id = ? AND date = ?");
-        if ($update->execute([$check_in, $check_out, $status, $remarks, $faculty_id, $date])) {
-            logActivity($pdo, 'UPDATE', 'attendance', $exists['id'], "Updated attendance for faculty ID $faculty_id on $date");
-            $message = "Attendance updated successfully.";
+            // Update
+            $update = $pdo->prepare("UPDATE attendance SET check_in_time = ?, check_out_time = ?, status = ?, remarks = ?, updated_at = NOW() WHERE faculty_id = ? AND date = ?");
+            if ($update->execute([$check_in, $check_out, $status, $remarks, $faculty_id, $date])) {
+                logActivity($pdo, 'UPDATE', 'attendance', $exists['id'], "Updated attendance for faculty ID $faculty_id on $date");
+                $message = "Attendance updated successfully.";
+            } else {
+                $error = "Failed to update attendance.";
+            }
         } else {
-            $error = "Failed to update attendance.";
-        }
-    } else {
-        // Insert
-        $insert = $pdo->prepare("INSERT INTO attendance (faculty_id, date, check_in_time, check_out_time, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        if ($insert->execute([$faculty_id, $date, $check_in, $check_out, $status, $remarks, $_SESSION['user_id']])) {
-            logActivity($pdo, 'CREATE', 'attendance', $pdo->lastInsertId(), "Marked attendance for faculty ID $faculty_id on $date");
-            $message = "Attendance marked successfully.";
-        } else {
-            $error = "Failed to mark attendance.";
+            // Insert
+            $insert = $pdo->prepare("INSERT INTO attendance (faculty_id, date, check_in_time, check_out_time, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            if ($insert->execute([$faculty_id, $date, $check_in, $check_out, $status, $remarks, $_SESSION['user_id']])) {
+                logActivity($pdo, 'CREATE', 'attendance', $pdo->lastInsertId(), "Marked attendance for faculty ID $faculty_id on $date");
+                $message = "Attendance marked successfully.";
+            } else {
+                $error = "Failed to mark attendance.";
+            }
         }
     }
     header("Location: attendance.php?date=$date");

@@ -31,9 +31,10 @@ function formatTime($time, $format = 'h:i A') {
 }
 function getStatusBadge($status) {
     if (empty($status)) return '<span class="badge bg-secondary">Unknown</span>';
-    $map = ['present' => 'success', 'absent' => 'danger', 'late' => 'warning', 'half_day' => 'info', 'on_leave' => 'primary'];
+    $map = ['present' => 'success', 'absent' => 'danger', 'late' => 'warning', 'half_day' => 'info', 'on_leave' => 'primary', 'weekend' => 'secondary', 'no_scan' => 'light', 'no_record' => 'dark'];
     $label = ucfirst(str_replace('_', ' ', $status));
-    return "<span class='badge bg-{$map[$status]}'>$label</span>";
+    $color = $map[$status] ?? 'secondary'; // Fallback to secondary if status not found
+    return "<span class='badge bg-{$color}'>$label</span>";
 }
 function getLeaveTypeBadge($type) {
     if (empty($type)) return '<span class="badge bg-secondary">Unknown</span>';

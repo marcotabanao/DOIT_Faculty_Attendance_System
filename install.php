@@ -63,6 +63,7 @@ ini_set('display_errors', 1);
 <body class="bg-light">
     <div class="install-container">
         <div class="logo">
+            <img src="assets/uploads/logo.png" alt="DOIT Logo" style="max-height: 80px; margin-bottom: 20px;">
             <h1><i class="fas fa-graduation-cap"></i> DOIT</h1>
             <p class="text-muted">Faculty Attendance System Installation</p>
         </div>
@@ -98,7 +99,7 @@ ini_set('display_errors', 1);
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Database Name</label>
-                    <input type="text" class="form-control" name="db_name" value="doit_attendance_system" required>
+                    <input type="text" class="form-control" name="db_name" value="doit_attendance" required>
                 </div>
                 <button type="submit" class="btn btn-primary" <?php echo !$db_test ? 'disabled' : ''; ?>>
                     Continue to Database Setup
@@ -111,7 +112,7 @@ ini_set('display_errors', 1);
             $db_host = $_POST['db_host'] ?? 'localhost';
             $db_user = $_POST['db_user'] ?? 'root';
             $db_pass = $_POST['db_pass'] ?? '';
-            $db_name = $_POST['db_name'] ?? 'doit_attendance_system';
+            $db_name = $_POST['db_name'] ?? 'doit_attendance';
             
             try {
                 $pdo = new PDO("mysql:host=$db_host", $db_user, $db_pass);

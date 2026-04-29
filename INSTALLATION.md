@@ -12,7 +12,7 @@
 ### Step 1: Database Setup
 
 1. Open phpMyAdmin: `http://localhost/phpmyadmin`
-2. Create database: `doit_attendance_system`
+2. Create database: `doit_attendance`
 3. Import the schema file: `database/schema.sql`
 
 ### Step 2: System Configuration
@@ -158,7 +158,7 @@ DOIT_FULL_SYSTEM/
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'doit_attendance_system');
+define('DB_NAME', 'doit_attendance');
 ```
 
 ### Security Configuration

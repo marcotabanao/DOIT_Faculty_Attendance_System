@@ -146,11 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Left panel (unchanged) -->
     <div class="left-panel">
         <div class="brand-content">
-            <?php if ($logo_path && file_exists(PROFILE_PHOTO_PATH . $logo_path)): ?>
-                <img src="assets/uploads/profile_photos/<?= htmlspecialchars($logo_path) ?>" alt="DOIT Logo" class="brand-logo">
-            <?php else: ?>
-                <img src="assets/images/doit-logo.png" alt="DOIT Logo" class="brand-logo" onerror="this.onerror=null; this.src='https://via.placeholder.com/120x120?text=DOIT'">
-            <?php endif; ?>
+            <img src="assets/uploads/logo.png" alt="DOIT Logo" class="brand-logo">
             <h1>DOIT <span class="gold">Faculty</span> Attendance</h1>
             <p>Davao Oriental International<br>Technology College</p>
             <div style="width: 50px; height: 2px; background: #e2c7a1; margin: 1rem auto;"></div>
@@ -162,11 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="right-panel">
         <div class="floating-card">
             <div class="login-header">
-                <?php if ($logo_path && file_exists(PROFILE_PHOTO_PATH . $logo_path)): ?>
-                    <img src="assets/uploads/profile_photos/<?= htmlspecialchars($logo_path) ?>" alt="DOIT Logo">
-                <?php else: ?>
-                    <i class="fas fa-graduation-cap fa-2x" style="color: #800000;"></i>
-                <?php endif; ?>
+                <img src="assets/uploads/logo.png" alt="DOIT Logo">
                 <h3>Welcome back</h3>
                 <p>Sign in to continue</p>
             </div>

@@ -2,6 +2,24 @@
 require_once 'config/database.php';
 require_once 'includes/functions.php';
 
+/**
+ * Get HR-compliant leave remark notation
+ * @param string $leaveType
+ * @return string
+ */
+function getLeaveRemark($leaveType) {
+    $leaveRemarks = [
+        'vacation' => 'VL', // Vacation Leave
+        'sick' => 'SL',    // Sick Leave
+        'emergency' => 'EL', // Emergency Leave
+        'maternity' => 'ML', // Maternity Leave
+        'paternity' => 'PL', // Paternity Leave
+        'other' => 'OL'    // Other Leave
+    ];
+    
+    return $leaveRemarks[$leaveType] ?? 'Leave';
+}
+
 $message = '';
 $error = '';
 $dtr_data = null;
@@ -39,6 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
                 $attStmt->execute([$faculty['id'], $month]);
                 $attendance_records = $attStmt->fetchAll(PDO::FETCH_ASSOC);
                 
+                // Get approved leave requests for the month
+                $leaveStmt = $pdo->prepare("
+                    SELECT * FROM leave_requests 
+                    WHERE faculty_id = ? AND status = 'approved' 
+                    AND (start_date <= ? AND end_date >= ?)
+                    ORDER BY start_date ASC
+                ");
+                $month_start = $year . '-' . str_pad($month_num, 2, '0', STR_PAD_LEFT) . '-01';
+                $month_end = $year . '-' . str_pad($month_num, 2, '0', STR_PAD_LEFT) . '-' . $days_in_month;
+                $leaveStmt->execute([$faculty['id'], $month_end, $month_start]);
+                $leave_requests = $leaveStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Create leave date map for easy lookup
+                $leave_dates = [];
+                foreach ($leave_requests as $leave) {
+                    $current = new DateTime($leave['start_date']);
+                    $end = new DateTime($leave['end_date']);
+                    while ($current <= $end) {
+                        $leave_dates[$current->format('Y-m-d')] = $leave;
+                        $current->modify('+1 day');
+                    }
+                }
+                
                 // Get faculty department
                 $deptStmt = $pdo->prepare("SELECT name FROM departments WHERE id = ?");
                 $deptStmt->execute([$faculty['department_id']]);
@@ -61,41 +102,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
                         }
                     }
                     
+                    // Check if this day has approved leave
+                    $has_leave = isset($leave_dates[$date]);
+                    $leave_info = $has_leave ? $leave_dates[$date] : null;
+                    
                     // Determine if it's a weekend
                     $is_weekend = ($day_of_week >= 6);
                     
-                    // Build day data
+                    // Build day data according to HR DTR standards
                     $day_data = [
                         'day' => $day,
                         'date' => $date,
                         'day_of_week' => $day_of_week,
                         'is_weekend' => $is_weekend,
-                        'check_in' => $record ? formatTime($record['check_in_time']) : '',
-                        'check_out' => $record ? formatTime($record['check_out_time']) : '',
-                        'status' => $record ? $record['status'] : ($is_weekend ? 'Weekend' : 'Absent'),
-                        'late_minutes' => $record ? ($record['late_minutes'] ?? 0) : 0,
-                        'remarks' => $record ? ($record['remarks'] ?? '') : ''
+                        'has_leave' => $has_leave,
+                        'leave_info' => $leave_info
                     ];
+                    
+                    // Handle different scenarios according to HR standards
+                    if ($has_leave && $leave_info) {
+                        // Approved leave - blank times, leave remarks
+                        $day_data['check_in'] = '';
+                        $day_data['check_out'] = '';
+                        $day_data['status'] = 'on_leave';
+                        $day_data['late_minutes'] = 0;
+                        $day_data['remarks'] = getLeaveRemark($leave_info['leave_type']);
+                    } elseif ($record && ($record['check_in_time'] || $record['check_out_time'])) {
+                        // Has attendance record
+                        $day_data['check_in'] = $record['check_in_time'] ? formatTime($record['check_in_time']) : '';
+                        $day_data['check_out'] = $record['check_out_time'] ? formatTime($record['check_out_time']) : '';
+                        $day_data['status'] = $record['status'] ?? 'present';
+                        $day_data['late_minutes'] = $record['late_minutes'] ?? 0;
+                        $day_data['remarks'] = $record['remarks'] ?? '';
+                    } elseif (!$is_weekend) {
+                        // No scan/check-in on weekday - blank times, no scan remarks
+                        $day_data['check_in'] = '';
+                        $day_data['check_out'] = '';
+                        $day_data['status'] = 'no_scan';
+                        $day_data['late_minutes'] = 0;
+                        $day_data['remarks'] = 'No Scan';
+                    } else {
+                        // Weekend
+                        $day_data['check_in'] = '';
+                        $day_data['check_out'] = '';
+                        $day_data['status'] = 'weekend';
+                        $day_data['late_minutes'] = 0;
+                        $day_data['remarks'] = '';
+                    }
                     
                     $dtr_data[] = $day_data;
                 }
                 
-                // Calculate summary statistics
+                // Calculate summary statistics according to HR standards
                 $present_days = 0;
                 $late_days = 0;
                 $absent_days = 0;
+                $leave_days = 0;
+                $no_scan_days = 0;
                 $total_late_minutes = 0;
                 
                 foreach ($dtr_data as $day) {
                     if (!$day['is_weekend']) {
-                        if ($day['status'] === 'present') {
-                            $present_days++;
-                        } elseif ($day['status'] === 'late') {
-                            $present_days++;
-                            $late_days++;
-                            $total_late_minutes += $day['late_minutes'];
-                        } elseif ($day['status'] === 'Absent') {
-                            $absent_days++;
+                        switch ($day['status']) {
+                            case 'present':
+                                $present_days++;
+                                break;
+                            case 'late':
+                                $present_days++;
+                                $late_days++;
+                                $total_late_minutes += $day['late_minutes'];
+                                break;
+                            case 'on_leave':
+                                $leave_days++;
+                                break;
+                            case 'no_scan':
+                                $no_scan_days++;
+                                break;
+                            default:
+                                $absent_days++;
+                                break;
                         }
                     }
                 }
@@ -114,9 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
                         'present_days' => $present_days,
                         'late_days' => $late_days,
                         'absent_days' => $absent_days,
+                        'leave_days' => $leave_days,
+                        'no_scan_days' => $no_scan_days,
                         'total_late_minutes' => $total_late_minutes,
                         'total_late_hours' => round($total_late_minutes / 60, 2),
-                        'working_days' => $present_days + $late_days + $absent_days
+                        'working_days' => $present_days + $late_days + $absent_days + $leave_days + $no_scan_days
                     ]
                 ];
                 
@@ -228,6 +315,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
         .present { background: #d4edda; }
         .late { background: #fff3cd; }
         .absent { background: #f8d7da; }
+        .leave { background: #cce5ff; }
+        .no-scan { background: #e2e3e5; }
     </style>
 </head>
 <body>
@@ -236,7 +325,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
         <div class="col-12">
             <div class="p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4 no-print">
-                    <h2><i class="bi bi-file-earmark-text"></i> DTR Generator</h2>
+                    <div class="d-flex align-items-center">
+                        <img src="assets/uploads/logo.png" alt="DOIT Logo" style="max-height: 50px; margin-right: 20px;">
+                        <h2><i class="bi bi-file-earmark-text"></i> DTR Generator</h2>
+                    </div>
                     <div>
                         <a href="kiosk.php" class="btn btn-primary">
                             <i class="bi bi-upc-scan"></i> Back to Kiosk
@@ -320,35 +412,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
                                     </thead>
                                     <tbody>
                                         <?php 
-                                        // Group sessions by date
-                                        $grouped_sessions = [];
+                                        // Display all days of the month according to HR standards
                                         foreach ($dtr_data['days'] as $day) {
-                                            if ($day['check_in'] || $day['check_out']) {
-                                                $date_key = $day['date'];
-                                                if (!isset($grouped_sessions[$date_key])) {
-                                                    $grouped_sessions[$date_key] = [];
-                                                }
-                                                $grouped_sessions[$date_key][] = $day;
+                                            // Skip weekends if they have no activity
+                                            if ($day['is_weekend'] && !$day['check_in'] && !$day['check_out'] && !$day['has_leave']) {
+                                                continue;
                                             }
-                                        }
-                                        
-                                        foreach ($grouped_sessions as $date => $sessions) {
-                                            $session_num = 1;
-                                            foreach ($sessions as $session) {
-                                                ?>
-                                                <tr class="<?= $session['is_weekend'] ? 'weekend' : ($session['status'] === 'present' ? 'present' : ($session['status'] === 'late' ? 'late' : 'absent')) ?>">
-                                                    <td><?= $session['day'] ?></td>
-                                                    <td><?= formatDate($session['date']) ?></td>
-                                                    <td><?= $session_num ?></td>
-                                                    <td><?= $session['check_in'] ?></td>
-                                                    <td><?= $session['check_out'] ?></td>
-                                                    <td><?= ucfirst($session['status']) ?></td>
-                                                    <td><?= $session['late_minutes'] ?></td>
-                                                    <td><?= htmlspecialchars($session['remarks']) ?></td>
-                                                </tr>
-                                                <?php
-                                                $session_num++;
+                                            
+                                            // Determine row class based on status
+                                            $rowClass = '';
+                                            switch ($day['status']) {
+                                                case 'present':
+                                                    $rowClass = 'present';
+                                                    break;
+                                                case 'late':
+                                                    $rowClass = 'late';
+                                                    break;
+                                                case 'on_leave':
+                                                    $rowClass = 'leave';
+                                                    break;
+                                                case 'no_scan':
+                                                    $rowClass = 'no-scan';
+                                                    break;
+                                                case 'weekend':
+                                                    $rowClass = 'weekend';
+                                                    break;
+                                                default:
+                                                    $rowClass = 'absent';
+                                                    break;
                                             }
+                                            
+                                            // Display status according to HR standards
+                                            $displayStatus = '';
+                                            switch ($day['status']) {
+                                                case 'present':
+                                                case 'late':
+                                                    $displayStatus = ucfirst($day['status']);
+                                                    break;
+                                                case 'on_leave':
+                                                    $displayStatus = 'Leave';
+                                                    break;
+                                                case 'no_scan':
+                                                    $displayStatus = 'No Scan';
+                                                    break;
+                                                case 'weekend':
+                                                    $displayStatus = 'Weekend';
+                                                    break;
+                                                default:
+                                                    $displayStatus = 'Absent';
+                                                    break;
+                                            }
+                                            
+                                            ?>
+                                            <tr class="<?= $rowClass ?>">
+                                                <td><?= $day['day'] ?></td>
+                                                <td><?= formatDate($day['date']) ?></td>
+                                                <td><?= date('D', strtotime($day['date'])) ?></td>
+                                                <td><?= ($day['check_in'] || $day['check_out']) ? '1' : '-' ?></td>
+                                                <td><?= $day['check_in'] ?></td>
+                                                <td><?= $day['check_out'] ?></td>
+                                                <td><?= $displayStatus ?></td>
+                                                <td><?= $day['late_minutes'] ?></td>
+                                                <td><?= htmlspecialchars($day['remarks']) ?></td>
+                                            </tr>
+                                            <?php
                                         }
                                         ?>
                                     </tbody>
@@ -362,13 +489,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_dtr'])) {
                                     <table class="table table-sm">
                                         <tr>
                                             <td><strong>Total Sessions:</strong></td>
-                                            <td><?= array_sum(array_column($dtr_data['days'], function($day) { return isset($day['check_in']) || isset($day['check_out']) ? 1 : 0; })) ?></td>
+                                            <td><?= count(array_filter($dtr_data['days'], function($day) { return $day['check_in'] || $day['check_out']; })) ?></td>
                                             <td><strong>Present Sessions:</strong></td>
                                             <td><?= $dtr_data['summary']['present_days'] ?></td>
                                         </tr>
                                         <tr>
                                             <td><strong>Late Sessions:</strong></td>
                                             <td><?= $dtr_data['summary']['late_days'] ?></td>
+                                            <td><strong>Leave Days:</strong></td>
+                                            <td><?= $dtr_data['summary']['leave_days'] ?></td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>No Scan Days:</strong></td>
+                                            <td><?= $dtr_data['summary']['no_scan_days'] ?></td>
                                             <td><strong>Absent Sessions:</strong></td>
                                             <td><?= $dtr_data['summary']['absent_days'] ?></td>
                                         </tr>

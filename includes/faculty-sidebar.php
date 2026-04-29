@@ -8,11 +8,7 @@ $logo_path = getSetting($pdo, 'logo_path');
 ?>
 <div class="sidebar">
     <div class="text-center py-4">
-        <?php if ($logo_path && file_exists(PROFILE_PHOTO_PATH . $logo_path)): ?>
-            <img src="../assets/uploads/profile_photos/<?= htmlspecialchars($logo_path) ?>" alt="DOIT Logo" style="max-height: 70px; margin-bottom: 10px;">
-        <?php else: ?>
-            <i class="bi bi-calendar-check fs-1 text-white"></i>
-        <?php endif; ?>
+        <img src="../assets/uploads/logo.png" alt="DOIT Logo" style="max-height: 70px; margin-bottom: 10px;">
     </div>
     <nav class="nav flex-column">
         <a class="nav-link <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : '' ?>" href="dashboard.php">
